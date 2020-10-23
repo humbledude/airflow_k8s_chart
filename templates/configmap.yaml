@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Values.airflow_config_env.kubernetes.env_from_configmap_ref }}
+data:
+  AIRFLOW_PROFILE: {{ .Values.profile }}
+{{- range $section, $keys := .Values.airflow_config_env }}
+{{- range $key, $val := $keys }}
+  AIRFLOW__{{ $section | upper }}__{{ $key | upper }}: {{ tpl (toString $val) $ | quote }}
+{{- end }}
+{{- end }}

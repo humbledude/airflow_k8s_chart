@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+  annotations:
+    ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+{{- range $host := .Values.ingress.hosts }}
+    - host: {{ $host }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ $.Release.Name }}
+              servicePort: 80
+{{- end }}

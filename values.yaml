@@ -1,0 +1,86 @@
+profile: dev
+
+airflow_home: /home/app/airflow
+
+ingress:
+  hosts:
+    - your.airflow.url.com
+
+image:
+  git:
+    repo: k8s.gcr.io/git-sync
+    tag: v3.1.1
+    image_pull_policy: IfNotPresent
+  airflow:
+    repo: apache/airflow
+    tag: 1.10.12
+    image_pull_policy: IfNotPresent
+  worker:
+    repo: apache/airflow
+    tag: 1.10.12
+    image_pull_policy: IfNotPresent
+
+github:
+  username: YOUR_GITHUB_USERNAME
+  token: YOUR_GITHUB_TOKEN
+  repo: https://github.com//YOUR_GITHUB_USERNAME/YOUR_GITHUB_REPONAME
+  repo_name: YOUR_GITHUB_REPONAME
+  branch: BRANCH
+
+
+# need to create secret, airflow backend DB
+# create secret on below key, in sqlalchemy uri format
+db_secret:
+  name: airflow-db
+  key: sql-alchemy-conn
+
+
+# this will go to environment variable for configuration
+# https://airflow.apache.org/docs/stable/howto/set-config.html#setting-configuration-options
+# $AIRFLOW__{SECTION}__{KEY}
+airflow_config_env:
+  core:
+    dags_folder: "$AIRFLOW_HOME/dags/{{ .Values.github.repo_name }}"
+    remote_logging: True
+
+    # you should setup connection for s3
+    remote_log_conn_id: minio_log_backend
+    remote_base_log_folder: s3://airflow/logs
+
+    default_timezone: Asia/Seoul
+    executor: KubernetesExecutor
+    sql_alchemy_conn: '$SQL_ALCHEMY_CONN'
+    parallelism: 10
+    dag_concurrency: 5
+    max_active_runs_per_dag: 5
+    load_examples: False
+    load_default_connections: False
+
+    # make your own : https://airflow.apache.org/docs/stable/howto/secure-connections.html
+    fernet_key: FURNET_KEY_BLAH_BLAH
+
+  webserver:
+    base_url: 'http://{{ .Values.ingress.host }}'
+    default_ui_timezone: Asia/Seoul
+    hide_paused_dags_by_default: True
+    rbac: True
+
+  kubernetes:
+    worker_container_repository: '{{ .Values.image.worker.repo }}'
+    worker_container_tag: '{{ .Values.image.worker.tag }}'
+    worker_container_image_pull_policy : '{{ .Values.image.worker.image_pull_policy }}'
+    delete_worker_pods: True
+    git_repo: '{{ .Values.github.repo }}'
+    git_branch: '{{ .Values.github.branch }}'
+    git_user: '{{ .Values.github.username }}'
+    git_password: '{{ .Values.github.token }}'
+    git_sync_dest: '{{ .Values.github.repo_name }}'
+    git_dags_folder_mount_point: '$AIRFLOW_HOME/dags'
+    worker_service_account_name: '{{ .Release.Name }}'
+    env_from_configmap_ref: airflow-env-configmap
+    # user uid on airflow image
+    run_as_user: 1000
+
+  kubernetes_secrets:
+    SQL_ALCHEMY_CONN: '{{ .Values.db_secret.name }}={{ .Values.db_secret.key }}'
+

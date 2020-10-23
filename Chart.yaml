@@ -1,0 +1,8 @@
+apiVersion: v1
+name: airflow
+version: 0.4.0
+description: Airflow on Kubernetes with ingress
+maintainers:
+  - name: keunhui park
+    email: keunhui.park@gmail.com
+appVersion: "1.10.12"

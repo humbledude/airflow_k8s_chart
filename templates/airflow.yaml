@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector: 
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      initContainers:
+      - name: init-git
+        image: {{ .Values.image.git.repo }}:{{ .Values.image.git.tag }}
+        imagePullPolicy: {{ .Values.image.git.image_pull_policy }}
+        volumeMounts:
+        - name: airflow-dags
+          mountPath: /tmp/git
+        args:
+          - --repo={{ template "helper.github.url" . }}
+          - --branch={{ .Values.github.branch }}
+          - -one-time
+      containers:
+      - name: webserver
+        image: {{ .Values.image.airflow.repo }}:{{ .Values.image.airflow.tag }}
+        imagePullPolicy: {{ .Values.image.airflow.image_pull_policy }}
+        ports:
+        - name: webserver
+          containerPort: 8080
+        resources:
+          requests: 
+            memory: 2Gi
+          limits: 
+            memory: 2Gi
+        args: ["webserver"]
+{{- include "helper.container.env" . | nindent 8 }}
+{{- include "helper.container.volumeMounts.common" . | nindent 8 }}
+      - name: scheduler
+        image: {{ .Values.image.airflow.repo }}:{{ .Values.image.airflow.tag }}
+        imagePullPolicy: {{ .Values.image.airflow.image_pull_policy }}
+        resources:
+          requests: 
+            memory: 2Gi
+          limits: 
+            memory: 2Gi
+        args: ["scheduler"]
+{{- include "helper.container.env" . | nindent 8 }}
+{{- include "helper.container.volumeMounts.common" . | nindent 8 }}
+      - name: git-sync
+        image: {{ .Values.image.git.repo }}:{{ .Values.image.git.tag }}
+        imagePullPolicy: {{ .Values.image.git.image_pull_policy }}
+        volumeMounts:
+        - name: airflow-dags
+          mountPath: /tmp/git
+        args:
+          - --repo={{ template "helper.github.url" . }}
+          - --branch={{ .Values.github.branch }}
+          - --wait=60
+      volumes:
+      - name: airflow-dags
+        emptyDir: {}
